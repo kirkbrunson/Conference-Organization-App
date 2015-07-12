@@ -108,3 +108,28 @@ class ConferenceQueryForms(messages.Message):
     """ConferenceQueryForms -- multiple ConferenceQueryForm inbound form message"""
     filters = messages.MessageField(ConferenceQueryForm, 1, repeated=True)
 
+
+class Session(ndb.Model):
+    """Session -- session object"""
+    name            = ndb.StringProperty(required=True)
+    highlights      = ndb.StringProperty()
+    organizerUserId = ndb.StringProperty()
+    speaker         = ndb.StringProperty()
+    typeOfSession   = ndb.StringProperty()
+    startTime       = ndb.TimeProperty()
+    duration        = ndb.IntegerProperty()
+
+class SessionForm(messages.Message):
+    """SessionForm -- Session outbound form message"""
+    name            = messages.StringField(1)
+    highlights      = messages.StringField(2)
+    organizerUserId = messages.StringField(3)
+    speaker         = messages.StringField(4)
+    typeOfSession   = messages.StringField(5)
+    startTime       = messages.StringField(6) #DateTimeField() --RFCT
+    duration        = messages.IntegerField(7)
+    
+    # websafeKey      = messages.StringField(11)
+    # organizerDisplayName = messages.StringField(12)
+
+    # Need wishlist here?
