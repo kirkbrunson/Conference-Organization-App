@@ -91,16 +91,6 @@ CONF_POST_REQUEST = endpoints.ResourceContainer(
     websafeConferenceKey=messages.StringField(1),
 )
 
-# SESSION_GET_REQUEST = endpoints.ResourceContainer(
-#     message_types.VoidMessage,
-#     websafeConferenceKey=messages.StringField(1)
-# )
-
-# SESSION_POST_REQUEST = endpoints.ResourceContainer(
-#     SessionForm,
-#     websafeConferenceKey=messages.StringField(1)
-# )
-
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 
@@ -645,12 +635,12 @@ class ConferenceApi(remote.Service):
         user_id = getUserId(user)
 
         # Filter sessions by wsck
-        sessions = Session.query()
-        sessions = sessions.filter(Session.websafeConferenceKey == request.websafeConferenceKey)
+        q = Session.query()
+        q = q.filter(Session.websafeConferenceKey == request.websafeConferenceKey)
 
         # return set of SessionForm objects for given Conference
         return SessionForms(
-            items=[self._copySessionToForm(session) for session in sessions]
+            items=[self._copySessionToForm(session) for session in q]
         )
 
     # getSessionsBySpeaker(speaker)
@@ -665,12 +655,12 @@ class ConferenceApi(remote.Service):
         user_id = getUserId(user)
 
         # filter sessions by speaker
-        sessions = Session.query()
-        sessions = sessions.filter(Session.speaker == request.speaker)
+        q = Session.query()
+        q = q.filter(Session.speaker == request.speaker)
         
         # return set of SessionForm objects for speaker
         return SessionForms(
-            items=[self._copySessionToForm(session) for session in sessions]
+            items=[self._copySessionToForm(session) for session in q]
         )
 
     # getConferenceSessionsByType(websafeConferenceKey, typeOfSession)
@@ -685,14 +675,13 @@ class ConferenceApi(remote.Service):
         user_id = getUserId(user)
 
         # filter sessions by wsck & type
-        sessions = Session.query()
-        sessions = sessions.filter(Session.websafeConferenceKey == request.websafeConferenceKey)
-        sessions = sessions.filter(Session.typeOfSession == request.typeOfSession)
+        q = Session.query()
+        q = q.filter(Session.websafeConferenceKey == request.websafeConferenceKey)
+        q = q.filter(Session.typeOfSession == request.typeOfSession)
         
         # return set of SessionForm objects for conf & type
         return SessionForms(
-            items=[self._copySessionToForm(session) for session in sessions]
+            items=[self._copySessionToForm(session) for session in q]
         )
-        
 
 api = endpoints.api_server([ConferenceApi]) # register API
