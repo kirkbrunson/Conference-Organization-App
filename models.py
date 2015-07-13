@@ -139,14 +139,31 @@ class SessionForms(messages.Message):
     items = messages.MessageField(SessionForm, 1, repeated=True)
 
 class SessionByConfForm(messages.Message):
+    """SessionByConfForm -- outbound sessions by conf key"""
     websafeConferenceKey = messages.StringField(1)
 
 class SessionBySpeakerForm(messages.Message):
+    """SessionBySpeakerForm -- outbound sessions by speaker"""
     speaker = messages.StringField(1)
 
 class SessionByTypeForm(messages.Message):
+    """SessionByTypeForm -- outbound sessions by conf key and session type"""
     websafeConferenceKey = messages.StringField(1)
     typeOfSession = messages.StringField(2)
-
     
-# Implement User wishlist for sessions
+class Wishlist(ndb.Model):
+    """Wishlist -- Wishlist object"""
+    websafeConferenceKey = ndb.StringProperty(required=True)
+    userId               = ndb.StringProperty(required=True)
+    name                 = ndb.StringProperty(required=True) # need this?
+
+class WishlistForm(messages.Message):
+    """WishlistForm -- outbound Wishlist message"""
+    websafeConferenceKey = messages.StringField(1)
+    userId               = messages.StringField(2)
+    name                 = messages.StringField(3)
+
+class WishlistForms(messages.Message):
+    """WishlistForms -- multiple outbound Wishlistforms message"""
+    items = messages.MessageField(WishlistForm, 1, repeated=True)
+
