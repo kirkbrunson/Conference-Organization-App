@@ -118,6 +118,8 @@ class Session(ndb.Model):
     typeOfSession   = ndb.StringProperty()
     startTime       = ndb.TimeProperty()
     duration        = ndb.IntegerProperty()
+    location        = ndb.StringProperty()
+    websafeConferenceKey = ndb.StringProperty()
 
 class SessionForm(messages.Message):
     """SessionForm -- Session outbound form message"""
@@ -126,10 +128,25 @@ class SessionForm(messages.Message):
     organizerUserId = messages.StringField(3)
     speaker         = messages.StringField(4)
     typeOfSession   = messages.StringField(5)
-    startTime       = messages.StringField(6) #DateTimeField() --RFCT
+    startTime       = messages.StringField(6) #DateTimeField() 
     duration        = messages.IntegerField(7)
+    location        = messages.StringField(8)
+    websafeConferenceKey = messages.StringField(9)
     
-    # websafeKey      = messages.StringField(11)
-    # organizerDisplayName = messages.StringField(12)
 
-    # Need wishlist here?
+class SessionForms(messages.Message):
+    """SessionForms -- multiple Sessions outbound form message"""
+    items = messages.MessageField(SessionForm, 1, repeated=True)
+
+class SessionByConfForm(messages.Message):
+    websafeConferenceKey = messages.StringField(1)
+
+class SessionBySpeakerForm(messages.Message):
+    speaker = messages.StringField(1)
+
+class SessionByTypeForm(messages.Message):
+    websafeConferenceKey = messages.StringField(1)
+    typeOfSession = messages.StringField(2)
+
+    
+# Implement User wishlist for sessions

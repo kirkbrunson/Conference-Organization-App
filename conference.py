@@ -36,6 +36,13 @@ from models import ConferenceForms
 from models import ConferenceQueryForm
 from models import ConferenceQueryForms
 from models import TeeShirtSize
+from models import Session
+from models import SessionForm
+from models import SessionForms
+from models import SessionByConfForm
+from models import SessionBySpeakerForm
+from models import SessionByTypeForm
+
 
 from settings import WEB_CLIENT_ID
 from settings import ANDROID_CLIENT_ID
@@ -83,6 +90,16 @@ CONF_POST_REQUEST = endpoints.ResourceContainer(
     ConferenceForm,
     websafeConferenceKey=messages.StringField(1),
 )
+
+# SESSION_GET_REQUEST = endpoints.ResourceContainer(
+#     message_types.VoidMessage,
+#     websafeConferenceKey=messages.StringField(1)
+# )
+
+# SESSION_POST_REQUEST = endpoints.ResourceContainer(
+#     SessionForm,
+#     websafeConferenceKey=messages.StringField(1)
+# )
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -550,5 +567,132 @@ class ConferenceApi(remote.Service):
             items=[self._copyConferenceToForm(conf, "") for conf in q]
         )
 
+
+
+# - - - Sessions - - - - - - - - - - - - - - - - - - - -
+# Endpoints to implement... dblchk proper func sig
+# getConferenceSessions(websafeConferenceKey)
+# getConferenceSessionsByType(websafeConferenceKey, typeOfSession)
+# getSessionsBySpeaker(speaker)
+# createSession(SessionForm, websafeConferenceKey)
+# implement update/ del setters
+
+# create sessions as belonging to a conf. (&user?) ndb rel?
+
+    def _copySessionToForm(self, session):
+        """Copy relevant fields from Session to SessionForm."""
+        sf = SessionForm()
+        for field in sf.all_fields():
+            if hasattr(session, field.name):
+                # convert Date to date string; just copy others
+                if field.name.endswith('Date'):
+                    setattr(sf, field.name, str(getattr(session, field.name)))
+                else:
+                    setattr(sf, field.name, getattr(session, field.name))
+            elif field.name == "websafeKey":
+                setattr(sf, field.name, session.key.urlsafe())
+        sf.check_initialized()
+        return sf
+
+
+    def _createSessionObject(self, request):
+        """Create or update Session object, returning SessionForm/request."""
+        # Comfirm auth
+        user = endpoints.get_current_user()
+        if not user:
+            raise endpoints.UnauthorizedException('Authorization required')
+        user_id = getUserId(user)
+
+        organizer = Conference.query(Conference.organizerUserId == request.organizerUserId)
+        if not organizer:
+            raise endpoints.UnauthorizedException('Must be conference organizer to create session')
+        
+        if not request.name:
+            raise endpoints.BadRequestException("Session 'name' field required")
+
+        # copy SessionForm/ProtoRPC Message into dict
+        data = {field.name: getattr(request, field.name) for field in request.all_fields()}
+        
+        p_key = ndb.Key(Profile, user_id)
+        s_id = Session.allocate_ids(size=1, parent=p_key)[0]
+        s_key = ndb.Key(Session, s_id, parent=p_key)
+        data['key'] = s_key
+        data['organizerUserId'] = request.organizerUserId = user_id
+
+        # Commit
+        Session(**data).put()
+        return request
+
+# - - - - Setters - - - - - - - - - - - - - - - - - - - - - - - - 
+    # createSession(SessionForm, websafeConferenceKey)
+    @endpoints.method(SessionForm, SessionForm,    
+        path='session', http_method='POST', name='createSession')
+    def createSession(self, request):
+        """Create a new Session"""
+        return self._createSessionObject(request)
+
+# - - - - Getters - - - - - - - - - - - - - - - - - - - - - - - - 
+    # getConferenceSessions(websafeConferenceKey)
+    @endpoints.method(SessionByConfForm, SessionForms,
+                path='getSessions',
+                http_method='POST', name='getConferenceSessions')
+    def getConferenceSessions(self, request):
+        """Return Sessions for given Conference."""
+        # make sure user is authed
+        user = endpoints.get_current_user()
+        if not user:
+            raise endpoints.UnauthorizedException('Authorization required')
+        user_id = getUserId(user)
+
+        # Filter sessions by wsck
+        sessions = Session.query()
+        sessions = sessions.filter(Session.websafeConferenceKey == request.websafeConferenceKey)
+
+        # return set of SessionForm objects for given Conference
+        return SessionForms(
+            items=[self._copySessionToForm(session) for session in sessions]
+        )
+
+    # getSessionsBySpeaker(speaker)
+    @endpoints.method(SessionBySpeakerForm, SessionForms,
+        path='getSessionsBySpeaker', http_method='POST', name='getSessionsBySpeaker')
+    def getSessionsBySpeaker(self, request):
+        """Return Sessions by speaker"""
+        # make sure user is authed
+        user = endpoints.get_current_user()
+        if not user:
+            raise endpoints.UnauthorizedException('Authorization required')
+        user_id = getUserId(user)
+
+        # filter sessions by speaker
+        sessions = Session.query()
+        sessions = sessions.filter(Session.speaker == request.speaker)
+        
+        # return set of SessionForm objects for speaker
+        return SessionForms(
+            items=[self._copySessionToForm(session) for session in sessions]
+        )
+
+    # getConferenceSessionsByType(websafeConferenceKey, typeOfSession)
+    @endpoints.method(SessionByTypeForm, SessionForms,
+        path='getConferenceSessionsByType', http_method='POST', name='getConferenceSessionsByType')
+    def getSessionsByType(self, request):
+        """Return Sessions by type"""
+        # make sure user is authed
+        user = endpoints.get_current_user()
+        if not user:
+            raise endpoints.UnauthorizedException('Authorization required')
+        user_id = getUserId(user)
+
+        # filter sessions by wsck & type
+        sessions = Session.query()
+        sessions = sessions.filter(Session.websafeConferenceKey == request.websafeConferenceKey)
+        sessions = sessions.filter(Session.typeOfSession == request.typeOfSession)
+        
+        # return set of SessionForm objects for conf & type
+        return SessionForms(
+            items=[self._copySessionToForm(session) for session in sessions]
+        )
+        
 
 api = endpoints.api_server([ConferenceApi]) # register API
