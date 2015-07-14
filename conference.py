@@ -24,24 +24,25 @@ from google.appengine.api import memcache
 from google.appengine.api import taskqueue
 from google.appengine.ext import ndb
 
-from models import ConflictException
-from models import Profile
-from models import ProfileMiniForm
-from models import ProfileForm
-from models import StringMessage
-from models import BooleanMessage
-from models import Conference
-from models import ConferenceForm
-from models import ConferenceForms
-from models import ConferenceQueryForm
-from models import ConferenceQueryForms
-from models import TeeShirtSize
-from models import Session
-from models import SessionForm
-from models import SessionForms
-from models import SessionByConfForm
-from models import SessionBySpeakerForm
-from models import SessionByTypeForm
+from models import *
+# from models import ConflictException
+# from models import Profile
+# from models import ProfileMiniForm
+# from models import ProfileForm
+# from models import StringMessage
+# from models import BooleanMessage
+# from models import Conference
+# from models import ConferenceForm
+# from models import ConferenceForms
+# from models import ConferenceQueryForm
+# from models import ConferenceQueryForms
+# from models import TeeShirtSize
+# from models import Session
+# from models import SessionForm
+# from models import SessionForms
+# from models import SessionByConfForm
+# from models import SessionBySpeakerForm
+# from models import SessionByTypeForm
 
 
 from settings import WEB_CLIENT_ID
@@ -560,15 +561,6 @@ class ConferenceApi(remote.Service):
 
 
 # - - - Sessions - - - - - - - - - - - - - - - - - - - -
-# Endpoints to implement... dblchk proper func sig
-# getConferenceSessions(websafeConferenceKey)
-# getConferenceSessionsByType(websafeConferenceKey, typeOfSession)
-# getSessionsBySpeaker(speaker)
-# createSession(SessionForm, websafeConferenceKey)
-# implement update/ del setters
-
-# create sessions as belonging to a conf. (&user?) ndb rel?
-
     def _copySessionToForm(self, session):
         """Copy relevant fields from Session to SessionForm."""
         sf = SessionForm()
@@ -583,7 +575,6 @@ class ConferenceApi(remote.Service):
                 setattr(sf, field.name, session.key.urlsafe())
         sf.check_initialized()
         return sf
-
 
     def _createSessionObject(self, request):
         """Create or update Session object, returning SessionForm/request."""
@@ -614,7 +605,6 @@ class ConferenceApi(remote.Service):
         return request
 
 # - - - - Setters - - - - - - - - - - - - - - - - - - - - - - - - 
-    # createSession(SessionForm, websafeConferenceKey)
     @endpoints.method(SessionForm, SessionForm,    
         path='session', http_method='POST', name='createSession')
     def createSession(self, request):
@@ -622,7 +612,6 @@ class ConferenceApi(remote.Service):
         return self._createSessionObject(request)
 
 # - - - - Getters - - - - - - - - - - - - - - - - - - - - - - - - 
-    # getConferenceSessions(websafeConferenceKey)
     @endpoints.method(SessionByConfForm, SessionForms,
                 path='getSessions',
                 http_method='POST', name='getConferenceSessions')
@@ -683,5 +672,63 @@ class ConferenceApi(remote.Service):
         return SessionForms(
             items=[self._copySessionToForm(session) for session in q]
         )
+
+
+# - - - Wishlists - - - - - - - - - - - - - - - - - - - -
+    def _copyWishlistToForm(self, wishlist):
+        """Copy relevant fields from Session to SessionForm."""
+        wf = WishlistForm()
+        for field in wf.all_fields():
+            if hasattr(wishlist, field.name):
+                setattr(wf, field.name, getattr(wishlist, field.name))
+            elif field.name == "key":
+                setattr(wf, field.name, wishlist.key.urlsafe())
+        wf.check_initialized()
+        return wf
+
+    def _createWishlistObject(self, request):
+        """Create or update Wishlist object, returning WishlistForm/request."""
+        # Comfirm auth
+        user = endpoints.get_current_user()
+        if not user:
+            raise endpoints.UnauthorizedException('Authorization required')
+
+        # Add & Commit
+        data = {}
+        data['userId'] = getUserId(user)
+        data['sessionKey'] = request.id
+ 
+        Wishlist(**data).put()
+        return request
+
+# - - - - Setters - - - - - - - - - - - - - - - - - - - - - - - - 
+    @endpoints.method(SessionMiniForm, SessionMiniForm,    
+        path='addWishlist', http_method='POST', name='addSessionToWishlist')
+    def addSessionToWishlist(self, request):
+        """Add a session to user wishlist"""
+
+        return self._createWishlistObject(request)
+
+# - - - - Getters - - - - - - - - - - - - - - - - - - - - - - - - 
+    @endpoints.method(message_types.VoidMessage, WishlistForms,
+                path='getWishlist',
+                http_method='POST', name='getSessionsInWishlist')
+    def getSessionsInWishlist(self, request):
+        """Return Sessions in user wishlist"""
+        # make sure user is authed
+        user = endpoints.get_current_user()
+        if not user:
+            raise endpoints.UnauthorizedException('Authorization required')
+        user_id = getUserId(user)
+
+        # Filter for the user's wishlist
+        q = Wishlist.query()
+        q = q.filter(Wishlist.userId == user_id)
+
+        # return set of WishlistForm objects for current user
+        return WishlistForms(
+            items=[self._copyWishlistToForm(i) for i in q]
+        )
+
 
 api = endpoints.api_server([ConferenceApi]) # register API
