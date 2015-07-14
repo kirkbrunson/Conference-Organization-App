@@ -153,17 +153,20 @@ class SessionByTypeForm(messages.Message):
     
 class Wishlist(ndb.Model):
     """Wishlist -- Wishlist object"""
-    websafeConferenceKey = ndb.StringProperty(required=True)
-    userId               = ndb.StringProperty(required=True)
-    name                 = ndb.StringProperty(required=True) # need this?
+    userId = ndb.StringProperty(required=True)
+    sessionKey    = ndb.StringProperty(required=True)
 
 class WishlistForm(messages.Message):
     """WishlistForm -- outbound Wishlist message"""
-    websafeConferenceKey = messages.StringField(1)
-    userId               = messages.StringField(2)
-    name                 = messages.StringField(3)
+    userId = messages.StringField(1)
+    sessionKey = messages.StringField(2)
 
 class WishlistForms(messages.Message):
     """WishlistForms -- multiple outbound Wishlistforms message"""
     items = messages.MessageField(WishlistForm, 1, repeated=True)
+
+class SessionMiniForm(messages.Message):
+    """SessionForm -- for adding session to wishlist"""
+    id = messages.StringField(1)
+
 
