@@ -696,7 +696,8 @@ class ConferenceApi(remote.Service):
         path='addWishlist', http_method='POST', name='addSessionToWishlist')
     def addSessionToWishlist(self, request):
         """Add a session to user wishlist"""
-
+        if not request.id:
+            raise endpoints.BadRequestException("Session 'id' field required")
         return self._createWishlistObject(request)
 
     # add rm session. should be icon cue
