@@ -128,7 +128,7 @@ class SessionForm(messages.Message):
     organizerUserId = messages.StringField(3)
     speaker         = messages.StringField(4)
     typeOfSession   = messages.StringField(5)
-    startTime       = messages.StringField(6) #DateTimeField() 
+    startTime       = messages.StringField(6) 
     duration        = messages.IntegerField(7)
     location        = messages.StringField(8)
     websafeConferenceKey = messages.StringField(9)

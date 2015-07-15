@@ -25,25 +25,6 @@ from google.appengine.api import taskqueue
 from google.appengine.ext import ndb
 
 from models import *
-# from models import ConflictException
-# from models import Profile
-# from models import ProfileMiniForm
-# from models import ProfileForm
-# from models import StringMessage
-# from models import BooleanMessage
-# from models import Conference
-# from models import ConferenceForm
-# from models import ConferenceForms
-# from models import ConferenceQueryForm
-# from models import ConferenceQueryForms
-# from models import TeeShirtSize
-# from models import Session
-# from models import SessionForm
-# from models import SessionForms
-# from models import SessionByConfForm
-# from models import SessionBySpeakerForm
-# from models import SessionByTypeForm
-
 
 from settings import WEB_CLIENT_ID
 from settings import ANDROID_CLIENT_ID
@@ -567,7 +548,7 @@ class ConferenceApi(remote.Service):
         for field in sf.all_fields():
             if hasattr(session, field.name):
                 # convert Date to date string; just copy others
-                if field.name.endswith('Date'):
+                if field.name.endswith('Time'):
                     setattr(sf, field.name, str(getattr(session, field.name)))
                 else:
                     setattr(sf, field.name, getattr(session, field.name))
@@ -594,6 +575,8 @@ class ConferenceApi(remote.Service):
         # copy SessionForm/ProtoRPC Message into dict
         data = {field.name: getattr(request, field.name) for field in request.all_fields()}
         
+        data['startTime'] = datetime.strptime(data['startTime'], '%H:%M').time()
+
         p_key = ndb.Key(Profile, user_id)
         s_id = Session.allocate_ids(size=1, parent=p_key)[0]
         s_key = ndb.Key(Session, s_id, parent=p_key)
@@ -605,11 +588,14 @@ class ConferenceApi(remote.Service):
         return request
 
 # - - - - Setters - - - - - - - - - - - - - - - - - - - - - - - - 
+# this needs to be open only to the creator of the conf. Also add update func
     @endpoints.method(SessionForm, SessionForm,    
         path='session', http_method='POST', name='createSession')
     def createSession(self, request):
         """Create a new Session"""
         return self._createSessionObject(request)
+
+    # update session. open only to creator
 
 # - - - - Getters - - - - - - - - - - - - - - - - - - - - - - - - 
     @endpoints.method(SessionByConfForm, SessionForms,
@@ -632,6 +618,8 @@ class ConferenceApi(remote.Service):
             items=[self._copySessionToForm(session) for session in q]
         )
 
+
+# if speaker entitity based, then should be able to get all speakers/ bios etc and then > talks
     # getSessionsBySpeaker(speaker)
     @endpoints.method(SessionBySpeakerForm, SessionForms,
         path='getSessionsBySpeaker', http_method='POST', name='getSessionsBySpeaker')
@@ -673,7 +661,9 @@ class ConferenceApi(remote.Service):
             items=[self._copySessionToForm(session) for session in q]
         )
 
+        # session filtering
 
+# need cascade delete... if del session. should also rm from all wlists
 # - - - Wishlists - - - - - - - - - - - - - - - - - - - -
     def _copyWishlistToForm(self, wishlist):
         """Copy relevant fields from Session to SessionForm."""
@@ -709,6 +699,9 @@ class ConferenceApi(remote.Service):
 
         return self._createWishlistObject(request)
 
+    # add rm session. should be icon cue
+
+
 # - - - - Getters - - - - - - - - - - - - - - - - - - - - - - - - 
     @endpoints.method(message_types.VoidMessage, WishlistForms,
                 path='getWishlist',
@@ -729,6 +722,8 @@ class ConferenceApi(remote.Service):
         return WishlistForms(
             items=[self._copyWishlistToForm(i) for i in q]
         )
+
+    #@end.get: sessionsinW&Conf
 
 
 api = endpoints.api_server([ConferenceApi]) # register API
