@@ -73,6 +73,11 @@ CONF_POST_REQUEST = endpoints.ResourceContainer(
     websafeConferenceKey=messages.StringField(1),
 )
 
+WL_GET_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    sessionKey=messages.IntegerField(1),
+)
+
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 
@@ -541,6 +546,19 @@ class ConferenceApi(remote.Service):
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 # - - - Sessions - - - - - - - - - - - - - - - - - - - -
     def _copySessionToForm(self, session):
         """Copy relevant fields from Session to SessionForm."""
@@ -661,70 +679,61 @@ class ConferenceApi(remote.Service):
             items=[self._copySessionToForm(session) for session in q]
         )
 
-        # session filtering
 
-# need cascade delete... if del session. should also rm from all wlists
 # - - - Wishlists - - - - - - - - - - - - - - - - - - - -
-    def _copyWishlistToForm(self, wishlist):
-        """Copy relevant fields from Session to SessionForm."""
-        wf = WishlistForm()
-        for field in wf.all_fields():
-            if hasattr(wishlist, field.name):
-                setattr(wf, field.name, getattr(wishlist, field.name))
-            elif field.name == "key":
-                setattr(wf, field.name, wishlist.key.urlsafe())
-        wf.check_initialized()
-        return wf
+    def _updateWishlist(self, request, reg=True):
+        """Add or Remove session from user wishlist."""
+        retval = None
+        prof = self._getProfileFromUser()
 
-    def _createWishlistObject(self, request):
-        """Create or update Wishlist object, returning WishlistForm/request."""
-        # Comfirm auth
+        # add to wishlist
+        if reg:
+            prof.sessionKeysToAttend.append(session_id)
+            retval = True
+
+        # check & rm if in wishlist
+        elif not reg:
+            if session_id in prof.sessionKeysToAttend:
+                prof.sessionKeysToAttend.remove(session_id)
+                retval = True
+            else:
+                retval = False
+
+        # write things back to the datastore & return
+        prof.put()
+        return BooleanMessage(data=retval)
+
+    @endpoints.method(message_types.VoidMessage, SessionForms,
+        path='user/wishlist',
+        http_method='GET', name='getWishlist')
+    def getWishlist(self, request):
+        """Get sessions in user wishlist."""
         user = endpoints.get_current_user()
-        if not user:
-            raise endpoints.UnauthorizedException('Authorization required')
-
-        # Add & Commit
-        data = {}
-        data['userId'] = getUserId(user)
-        data['sessionKey'] = request.id
- 
-        Wishlist(**data).put()
-        return request
-
-# - - - - Setters - - - - - - - - - - - - - - - - - - - - - - - - 
-    @endpoints.method(SessionMiniForm, SessionMiniForm,    
-        path='addWishlist', http_method='POST', name='addSessionToWishlist')
-    def addSessionToWishlist(self, request):
-        """Add a session to user wishlist"""
-        if not request.id:
-            raise endpoints.BadRequestException("Session 'id' field required")
-        return self._createWishlistObject(request)
-
-    # add rm session. should be icon cue
-
-
-# - - - - Getters - - - - - - - - - - - - - - - - - - - - - - - - 
-    @endpoints.method(message_types.VoidMessage, WishlistForms,
-                path='getWishlist',
-                http_method='POST', name='getSessionsInWishlist')
-    def getSessionsInWishlist(self, request):
-        """Return Sessions in user wishlist"""
-        # make sure user is authed
-        user = endpoints.get_current_user()
-        if not user:
-            raise endpoints.UnauthorizedException('Authorization required')
         user_id = getUserId(user)
+        prof = self._getProfileFromUser()
+        p_key = ndb.Key(Profile, user_id)
+        
+        session_keys = [ndb.Key(Session, s_id, parent=p_key) for s_id in prof.sessionKeysToAttend]
+        sessions = ndb.get_multi(session_keys)
 
-        # Filter for the user's wishlist
-        q = Wishlist.query()
-        q = q.filter(Wishlist.userId == user_id)
+        # return set of sessionForm objects
+        return SessionForms(
+            items=[self._copySessionToForm(session) for session in sessions]
+            )
 
-        # return set of WishlistForm objects for current user
-        return WishlistForms(
-            items=[self._copyWishlistToForm(i) for i in q]
-        )
+    @endpoints.method(WL_GET_REQUEST, BooleanMessage,
+        path='addSession',
+        http_method='POST', name='addToWishlist')
+    def addSession(self, request):
+        """Add session to user wishlist."""
+        return self._updateWishlist(request)
 
-    #@end.get: sessionsinW&Conf
+    @endpoints.method(WL_GET_REQUEST, BooleanMessage,
+        path='removeSession',
+        http_method='DELETE', name='removeFromWishlist')
+    def removeSession(self, request):
+        """Remove session from user wishlist."""
+        return self._updateWishlist(request, reg=False)
 
 
 api = endpoints.api_server([ConferenceApi]) # register API
