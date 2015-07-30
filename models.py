@@ -151,3 +151,12 @@ class SessionByTypeForm(messages.Message):
     websafeConferenceKey = messages.StringField(1)
     typeOfSession = messages.StringField(2)
     
+class Speaker(ndb.Model):
+    """Speaker -- speaker object"""
+    name = messages.StringProperty()
+    biography = messages.StringProperty()
+
+class SpeakerForm(messages.Message):
+    """SpeakerForm -- Speaker outbound form message"""
+    name = messages.StringField(1)
+    biography = messages.StringField(2)
