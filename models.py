@@ -115,24 +115,26 @@ class Session(ndb.Model):
     name            = ndb.StringProperty(required=True)
     highlights      = ndb.StringProperty()
     organizerUserId = ndb.StringProperty()
-    speaker         = ndb.StringProperty()
+    speaker_id      = ndb.KeyProperty()
     typeOfSession   = ndb.StringProperty()
     startTime       = ndb.TimeProperty()
     duration        = ndb.IntegerProperty()
     location        = ndb.StringProperty()
     websafeConferenceKey = ndb.StringProperty()
+    speakerName     = ndb.StringProperty()
 
 class SessionForm(messages.Message):
     """SessionForm -- Session outbound form message"""
     name            = messages.StringField(1)
     highlights      = messages.StringField(2)
     organizerUserId = messages.StringField(3)
-    speaker         = messages.StringField(4)
+    speaker_id      = messages.IntegerField(4)
     typeOfSession   = messages.StringField(5)
     startTime       = messages.StringField(6) 
     duration        = messages.IntegerField(7)
     location        = messages.StringField(8)
-    websafeConferenceKey = messages.StringField(9)    
+    websafeConferenceKey = messages.StringField(9)
+    speakerName     = messages.StringField(10)    
 
 class SessionForms(messages.Message):
     """SessionForms -- multiple Sessions outbound form message"""
@@ -144,7 +146,7 @@ class SessionByConfForm(messages.Message):
 
 class SessionBySpeakerForm(messages.Message):
     """SessionBySpeakerForm -- outbound sessions by speaker"""
-    speaker = messages.StringField(1)
+    speaker = messages.IntegerField(1)
 
 class SessionByTypeForm(messages.Message):
     """SessionByTypeForm -- outbound sessions by conf key and session type"""
@@ -155,14 +157,11 @@ class Speaker(ndb.Model):
     """Speaker -- speaker object"""
     name = ndb.StringProperty(required=True)
     biography = ndb.StringProperty()
-    sessionKeys = ndb.IntegerProperty(repeated=True)
-
 
 class SpeakerForm(messages.Message):
     """SpeakerForm -- Speaker outbound form message"""
     name = messages.StringField(1)
     biography = messages.StringField(2)
-    sessionsKeys = messages.IntegerField(3)
 
 class SpeakerForms(messages.Message):
     """SpeakerForms -- multiple Speakers outbound form message"""

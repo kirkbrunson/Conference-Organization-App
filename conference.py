@@ -10,6 +10,19 @@ created by wesc on 2014 apr 21
 
 """
 
+# TODO
+# finish speaker/ session testing.
+# write readme on design decisions (session, wishlist, speakers), additional queries,
+# impl additional queries.
+# prob w. supplied query? & fix
+
+# impl getFeaturedSpeaker() 
+# readme run steps
+
+# Other
+# 404 & er if wl/sess/conf not found || bad val. enum && impl
+
+
 __author__ = 'wesc+api@google.com (Wesley Chun)'
 
 
@@ -76,6 +89,11 @@ CONF_POST_REQUEST = endpoints.ResourceContainer(
 WL_GET_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,
     sessionKey=messages.IntegerField(1),
+)
+
+SP_GET_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    websafeConferenceKey=messages.StringField(1),
 )
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -234,7 +252,7 @@ class ConferenceApi(remote.Service):
             http_method='POST', name='getConferencesCreated')
     def getConferencesCreated(self, request):
         """Return conferences created by user."""
-        # make sure user is authed
+        # user auth
         user = endpoints.get_current_user()
         if not user:
             raise endpoints.UnauthorizedException('Authorization required')
@@ -341,7 +359,7 @@ class ConferenceApi(remote.Service):
 
     def _getProfileFromUser(self):
         """Return user Profile from datastore, creating new one if non-existent."""
-        # make sure user is authed
+        # user auth
         user = endpoints.get_current_user()
         if not user:
             raise endpoints.UnauthorizedException('Authorization required')
@@ -545,19 +563,70 @@ class ConferenceApi(remote.Service):
         )
 
 
+# - - - Speakers - - - - - - - - - - - - - - - - - - - -
+    def _copySpeakerToForm(self, speaker):
+        """Copy relevant fields from Speaker to SpeakerForm."""
+        sf = SpeakerForm()
+        for field in sf.all_fields():
+            if hasattr(speaker, field.name):
+                setattr(sf, field.name, getattr(speaker, field.name))
+        sf.check_initialized()
+        return sf
 
+    def _createSpeakerObject(self, request):
+        """Create or update Speaker object, returning SpeakerForm/request."""
+        # Comfirm auth
+        user = endpoints.get_current_user()
+        if not user:
+            raise endpoints.UnauthorizedException('Authorization required')
+        user_id = getUserId(user)
 
+        if not request.name:
+            raise endpoints.BadRequestException("Speaker 'name' field required")
 
+        # copy SpeakerForm/ProtoRPC Message into dict
+        data = {field.name: getattr(request, field.name) for field in request.all_fields()}
+        
+        # p_key = ndb.Key(Profile, user_id)
+        # s_id = Speaker.allocate_ids(size=1, parent=p_key)[0]
+        # s_key = ndb.Key(Speaker, s_id, parent=p_key)
+        # data['key'] = s_key
 
+        # Commit
+        Speaker(**data).put()
+        return request
 
+# - - - - Setters - - - - - - - - - - - - - - - - - - - - - - - - 
+    @endpoints.method(SpeakerForm, SpeakerForm,    
+        path='createSpeaker', http_method='POST', name='createSpeaker')
+    def createSpeaker(self, request):
+        """Create a new Speaker"""
+        return self._createSpeakerObject(request)
 
+# - - - - Getters - - - - - - - - - - - - - - - - - - - - - - - - 
+    @endpoints.method(SP_GET_REQUEST, SpeakerForms,
+            path='speakers/{websafeConferenceKey}',
+            http_method='POST', name='getSpeakers')
+    def getSpeakers(self, request):
+        """Return all Speakers for given Conference."""
+        # user auth
+        user = endpoints.get_current_user()
+        if not user:
+            raise endpoints.UnauthorizedException('Authorization required')
+        user_id = getUserId(user)
 
+        sessions = Session.query(Session.websafeConferenceKey==request.websafeConferenceKey)
+        speaker_ids = []
+        for i in sessions:
+            speaker_ids.append(i.speaker_id)
+        
+        # if none then rt acd
+        speakers = ndb.get_multi(speaker_ids)
 
-
-
-
-
-
+        # return set of SpeakerForm objects for given Conference
+        return SpeakerForms(
+            items=[self._copySpeakerToForm(speaker) for speaker in speakers]
+        )
 
 # - - - Sessions - - - - - - - - - - - - - - - - - - - -
     def _copySessionToForm(self, session):
@@ -568,10 +637,14 @@ class ConferenceApi(remote.Service):
                 # convert Date to date string; just copy others
                 if field.name.endswith('Time'):
                     setattr(sf, field.name, str(getattr(session, field.name)))
+                elif field.name == "speaker_id":
+                    print ""
                 else:
                     setattr(sf, field.name, getattr(session, field.name))
             elif field.name == "websafeKey":
                 setattr(sf, field.name, session.key.urlsafe())
+        speaker = session.speaker_id.get()
+        sf.speakerName = speaker.name
         sf.check_initialized()
         return sf
 
@@ -600,20 +673,19 @@ class ConferenceApi(remote.Service):
         s_key = ndb.Key(Session, s_id, parent=p_key)
         data['key'] = s_key
         data['organizerUserId'] = request.organizerUserId = user_id
+        data['speaker_id'] = ndb.Key(Speaker, request.speaker_id)
 
         # Commit
         Session(**data).put()
         return request
 
 # - - - - Setters - - - - - - - - - - - - - - - - - - - - - - - - 
-# this needs to be open only to the creator of the conf. Also add update func
     @endpoints.method(SessionForm, SessionForm,    
         path='session', http_method='POST', name='createSession')
     def createSession(self, request):
         """Create a new Session"""
         return self._createSessionObject(request)
 
-    # update session. open only to creator
 
 # - - - - Getters - - - - - - - - - - - - - - - - - - - - - - - - 
     @endpoints.method(SessionByConfForm, SessionForms,
@@ -621,7 +693,7 @@ class ConferenceApi(remote.Service):
                 http_method='POST', name='getConferenceSessions')
     def getConferenceSessions(self, request):
         """Return Sessions for given Conference."""
-        # make sure user is authed
+        # user auth
         user = endpoints.get_current_user()
         if not user:
             raise endpoints.UnauthorizedException('Authorization required')
@@ -637,33 +709,31 @@ class ConferenceApi(remote.Service):
         )
 
 
-# if speaker entitity based, then should be able to get all speakers/ bios etc and then > talks
-    # getSessionsBySpeaker(speaker)
     @endpoints.method(SessionBySpeakerForm, SessionForms,
         path='getSessionsBySpeaker', http_method='POST', name='getSessionsBySpeaker')
     def getSessionsBySpeaker(self, request):
         """Return Sessions by speaker"""
-        # make sure user is authed
+        # user auth
         user = endpoints.get_current_user()
         if not user:
             raise endpoints.UnauthorizedException('Authorization required')
         user_id = getUserId(user)
 
+        speaker_key = ndb.Key(Speaker, request.speaker)
         # filter sessions by speaker
         q = Session.query()
-        q = q.filter(Session.speaker == request.speaker)
+        q = q.filter(Session.speaker_id == speaker_key)
         
         # return set of SessionForm objects for speaker
         return SessionForms(
             items=[self._copySessionToForm(session) for session in q]
         )
 
-    # getConferenceSessionsByType(websafeConferenceKey, typeOfSession)
     @endpoints.method(SessionByTypeForm, SessionForms,
         path='getConferenceSessionsByType', http_method='POST', name='getConferenceSessionsByType')
     def getSessionsByType(self, request):
         """Return Sessions by type"""
-        # make sure user is authed
+        # user auth
         user = endpoints.get_current_user()
         if not user:
             raise endpoints.UnauthorizedException('Authorization required')
@@ -688,13 +758,13 @@ class ConferenceApi(remote.Service):
 
         # add to wishlist
         if reg:
-            prof.sessionKeysToAttend.append(session_id)
+            prof.sessionKeysToAttend.append(request.sessionKey)
             retval = True
 
         # check & rm if in wishlist
         elif not reg:
-            if session_id in prof.sessionKeysToAttend:
-                prof.sessionKeysToAttend.remove(session_id)
+            if request.sessionKey in prof.sessionKeysToAttend:
+                prof.sessionKeysToAttend.remove(request.sessionKey)
                 retval = True
             else:
                 retval = False
