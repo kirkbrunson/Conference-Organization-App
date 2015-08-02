@@ -153,6 +153,16 @@ class SessionByTypeForm(messages.Message):
     websafeConferenceKey = messages.StringField(1)
     typeOfSession = messages.StringField(2)
     
+class SessionQueryForm(messages.Message):
+    """SessionQueryForm -- Session query inbound form message"""
+    field = messages.StringField(1)
+    operator = messages.StringField(2)
+    value = messages.StringField(3)
+
+class SessionQueryForms(messages.Message):
+    """SessionQueryForms -- multiple SessionQueryForm inbound form message"""
+    filters = messages.MessageField(SessionQueryForm, 1, repeated=True)
+
 class Speaker(ndb.Model):
     """Speaker -- speaker object"""
     name = ndb.StringProperty(required=True)

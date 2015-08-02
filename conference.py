@@ -11,17 +11,14 @@ created by wesc on 2014 apr 21
 """
 
 # TODO
-# finish speaker/ session testing.
-# write readme on design decisions (session, wishlist, speakers), additional queries,
-# impl additional queries.
-# prob w. supplied query? & fix
+# fix prob query
+# impl getFeaturedSpeaker() [task] 
 
-# impl getFeaturedSpeaker() 
-# readme run steps
-
+# session as child of conf? dbck this.
 # Other
 # 404 & er if wl/sess/conf not found || bad val. enum && impl
-
+# DRY auth and form building
+# cron issue
 
 __author__ = 'wesc+api@google.com (Wesley Chun)'
 
@@ -75,6 +72,15 @@ FIELDS =    {
             'MONTH': 'month',
             'MAX_ATTENDEES': 'maxAttendees',
             }
+
+SFIELDS =  {
+            'NAME': 'name',
+            'SPEAKERNAME': 'speakerName',
+            'TYPEOFSESSION': 'typeOfSession',
+            'STARTTIME': 'startTime',
+            'LOCATION': 'location',
+            'DURATION': 'duration',
+}
 
 CONF_GET_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,
@@ -266,9 +272,11 @@ class ConferenceApi(remote.Service):
             items=[self._copyConferenceToForm(conf, getattr(prof, 'displayName')) for conf in confs]
         )
 
+# add logic for formating/ filtering queries.
 
     def _getQuery(self, request):
         """Return formatted query from the submitted filters."""
+        
         q = Conference.query()
         inequality_filter, filters = self._formatFilters(request.filters)
 
@@ -338,7 +346,6 @@ class ConferenceApi(remote.Service):
                 items=[self._copyConferenceToForm(conf, names[conf.organizerUserId]) for conf in \
                 conferences]
         )
-
 
 # - - - Profile objects - - - - - - - - - - - - - - - - - - -
 
@@ -586,11 +593,6 @@ class ConferenceApi(remote.Service):
 
         # copy SpeakerForm/ProtoRPC Message into dict
         data = {field.name: getattr(request, field.name) for field in request.all_fields()}
-        
-        # p_key = ndb.Key(Profile, user_id)
-        # s_id = Speaker.allocate_ids(size=1, parent=p_key)[0]
-        # s_key = ndb.Key(Speaker, s_id, parent=p_key)
-        # data['key'] = s_key
 
         # Commit
         Speaker(**data).put()
@@ -748,6 +750,65 @@ class ConferenceApi(remote.Service):
         return SessionForms(
             items=[self._copySessionToForm(session) for session in q]
         )
+
+    # formating/ filtering session queries.
+    def _getSessionQuery(self, request):
+        """Return formatted query from the submitted filters."""
+        q = Session.query()
+        inequality_filter, filters = self._sessionFormatFilters(request.filters)
+
+        # If exists, sort on inequality filter first
+        if not inequality_filter:
+            q = q.order(Session.name)
+        else:
+            q = q.order(ndb.GenericProperty(inequality_filter))
+            q = q.order(Session.name)
+
+        for filtr in filters:
+            if filtr["field"] == "duration":
+                filtr["value"] = int(filtr["value"])
+            elif filtr["field"] == "startTime":
+                filtr['value'] = datetime.strptime(filtr['value'], '%H:%M').time()
+            formatted_query = ndb.query.FilterNode(filtr["field"], filtr["operator"], filtr["value"])
+            q = q.filter(formatted_query)
+        return q
+
+    def _sessionFormatFilters(self, filters):
+        """Parse, check validity and format user supplied filters."""
+
+        formatted_filters = []
+        inequality_field = None
+
+        for f in filters:
+            filtr = {field.name: getattr(f, field.name) for field in f.all_fields()}
+
+            try:
+                filtr["field"] = SFIELDS[filtr["field"]]
+                filtr["operator"] = OPERATORS[filtr["operator"]]
+            except KeyError:
+                raise endpoints.BadRequestException("Filter contains invalid field or operator.")
+
+            # Every operation except "=" is an inequality
+            if filtr["operator"] != "=":
+                # check if inequality operation has been used in previous filters
+                # disallow the filter if inequality was performed on a different field before
+                # track the field on which the inequality operation is performed
+                if inequality_field and inequality_field != filtr["field"]:
+                    raise endpoints.BadRequestException("Inequality filter is allowed on only one field.")
+                else:
+                    inequality_field = filtr["field"]
+
+            formatted_filters.append(filtr)
+        return (inequality_field, formatted_filters)
+
+
+    @endpoints.method(SessionQueryForms, SessionForms,
+        path='querySessions', 
+        http_method='POST', name='querySessions')    
+    def querySessions(self, request):
+        """Query for sessions"""
+        sessions = self._getSessionQuery(request)
+        return SessionForms(items=[self._copySessionToForm(i) for i in sessions])
 
 
 # - - - Wishlists - - - - - - - - - - - - - - - - - - - -
