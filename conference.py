@@ -636,9 +636,8 @@ class ConferenceApi(remote.Service):
         sf = SessionForm()
         for field in sf.all_fields():
             if hasattr(session, field.name):
-                # convert Date to date string; just copy others
                 if field.name.endswith('Time'):
-                    setattr(sf, field.name, str(getattr(session, field.name)))
+                    setattr(sf, field.name, getattr(session, field.name).strftime('%H:%M'))
                 elif field.name == "speaker_id":
                     print ""
                 else:
@@ -769,8 +768,24 @@ class ConferenceApi(remote.Service):
                 filtr["value"] = int(filtr["value"])
             elif filtr["field"] == "startTime":
                 filtr['value'] = datetime.strptime(filtr['value'], '%H:%M').time()
-            formatted_query = ndb.query.FilterNode(filtr["field"], filtr["operator"], filtr["value"])
-            q = q.filter(formatted_query)
+                
+                # hack around issue w. filterNode not working w. time properties.
+                if filtr['operator'] == '=':
+                    q = q.filter(Session.startTime == filtr['value'])
+                elif filtr['operator'] == '>':
+                    q = q.filter(Session.startTime > filtr['value'])
+                elif filtr['operator'] == '>=':
+                    q = q.filter(Session.startTime >= filtr['value'])
+                elif filtr['operator'] == '<':
+                    q = q.filter(Session.startTime < filtr['value'])
+                elif filtr['operator'] == '<=':
+                    q = q.filter(Session.startTime <= filtr['value'])
+                elif filtr['operator'] == '!=':
+                    q = q.filter(Session.startTime != filtr['value'])
+            
+            if filtr["field"] != "startTime":
+                formatted_query = ndb.query.FilterNode(filtr["field"], filtr['operator'], filtr['value'])
+                q = q.filter(formatted_query)
         return q
 
     def _sessionFormatFilters(self, filters):
@@ -790,9 +805,6 @@ class ConferenceApi(remote.Service):
 
             # Every operation except "=" is an inequality
             if filtr["operator"] != "=":
-                # check if inequality operation has been used in previous filters
-                # disallow the filter if inequality was performed on a different field before
-                # track the field on which the inequality operation is performed
                 if inequality_field and inequality_field != filtr["field"]:
                     raise endpoints.BadRequestException("Inequality filter is allowed on only one field.")
                 else:
