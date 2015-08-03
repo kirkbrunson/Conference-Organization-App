@@ -11,8 +11,7 @@ created by wesc on 2014 apr 21
 """
 
 # TODO
-# finish fq&& rme. also rme for sq
-# impl getFeaturedSpeaker() [task] 
+# gfs as task
 
 # session as child of conf? dbck this.
 # Other
@@ -48,6 +47,10 @@ API_EXPLORER_CLIENT_ID = endpoints.API_EXPLORER_CLIENT_ID
 MEMCACHE_ANNOUNCEMENTS_KEY = "RECENT_ANNOUNCEMENTS"
 ANNOUNCEMENT_TPL = ('Last chance to attend! The following conferences '
                     'are nearly sold out: %s')
+
+MEMCACHE_SPEAKER_KEY = "FEATURED SPEAKER"
+FEATURED_SPEAKER = ("Our featured speaker is %s who will be presenting %s")
+
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 DEFAULTS = {
@@ -460,7 +463,6 @@ class ConferenceApi(remote.Service):
 
 
 # - - - Registration - - - - - - - - - - - - - - - - - - - -
-
     @ndb.transactional(xg=True)
     def _conferenceRegistration(self, request, reg=True):
         """Register or unregister user for selected conference."""
@@ -631,6 +633,27 @@ class ConferenceApi(remote.Service):
         )
 
 # - - - Sessions - - - - - - - - - - - - - - - - - - - -
+    @staticmethod
+    def _setFeaturedSpeaker(confKey, speaker):
+        """Sets memcache featured speakers announcement"""
+        q = Session.query(ndb.AND(
+                Session.speaker_id==speaker,
+                Session.websafeConferenceKey == confKey))
+        sessionNames = []
+        count = 0
+
+        for i in q:
+            count += 1
+            sessionNames.append(i.name)
+
+        if count >= 2:
+            speakerName = speaker.get()
+            speakerName = speakerName.name
+            speakerAnounncement = FEATURED_SPEAKER % (speakerName, ', '.join(sessionNames))
+            memcache.set(MEMCACHE_SPEAKER_KEY, speakerAnounncement)
+        return True
+
+    
     def _copySessionToForm(self, session):
         """Copy relevant fields from Session to SessionForm."""
         sf = SessionForm()
@@ -678,7 +701,11 @@ class ConferenceApi(remote.Service):
 
         # Commit
         Session(**data).put()
+
+        # Get Featured Speaker & Sessions and set annoucement:
+        self._setFeaturedSpeaker(request.websafeConferenceKey, data['speaker_id'])
         return request
+        
 
 # - - - - Setters - - - - - - - - - - - - - - - - - - - - - - - - 
     @endpoints.method(SessionForm, SessionForm,    
@@ -749,6 +776,14 @@ class ConferenceApi(remote.Service):
         return SessionForms(
             items=[self._copySessionToForm(session) for session in q]
         )
+
+    @endpoints.method(SP_GET_REQUEST, StringMessage,
+        path='conference/featured',
+        http_method='GET', name='getFeaturedSpeaker')
+    def getFeaturedSpeaker(self, request):
+        """Return Featured Speaker announcement from memcache."""
+        return StringMessage(data=memcache.get(MEMCACHE_SPEAKER_KEY) or "")
+
 
     # - - - - Session queries - - - - 
     def _getSessionQuery(self, request):
