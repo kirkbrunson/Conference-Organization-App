@@ -10,15 +10,6 @@ created by wesc on 2014 apr 21
 
 """
 
-# TODO
-# gfs as task
-
-# session as child of conf? dbck this.
-# Other
-# 404 & er if wl/sess/conf not found || bad val. enum && impl
-# DRY auth and form building
-# cron issue
-
 __author__ = 'wesc+api@google.com (Wesley Chun)'
 
 
@@ -208,7 +199,6 @@ class ConferenceApi(remote.Service):
             raise endpoints.ForbiddenException(
                 'Only the owner can update the conference.')
 
-        # Not getting all the fields, so don't create a new object; just
         # copy relevant fields from ConferenceForm to Conference object
         for field in request.all_fields():
             data = getattr(request, field.name)
@@ -275,7 +265,7 @@ class ConferenceApi(remote.Service):
             items=[self._copyConferenceToForm(conf, getattr(prof, 'displayName')) for conf in confs]
         )
 
-# add logic for formating/ filtering queries.
+    # logic for formating/ filtering queries.
 
     def _getQuery(self, request):
         """Return formatted query from the submitted filters."""
@@ -314,9 +304,7 @@ class ConferenceApi(remote.Service):
 
             # Every operation except "=" is an inequality
             if filtr["operator"] != "=":
-                # check if inequality operation has been used in previous filters
-                # disallow the filter if inequality was performed on a different field before
-                # track the field on which the inequality operation is performed
+                # check if allowed inequality operation
                 if inequality_field and inequality_field != filtr["field"]:
                     raise endpoints.BadRequestException("Inequality filter is allowed on only one field.")
                 else:
@@ -334,7 +322,6 @@ class ConferenceApi(remote.Service):
         """Query for conferences."""
         conferences = self._getQuery(request)
 
-        # need to fetch organiser displayName from profiles
         # get all keys and use get_multi for speed
         organisers = [(ndb.Key(Profile, conf.organizerUserId)) for conf in conferences]
         profiles = ndb.get_multi(organisers)
@@ -388,7 +375,7 @@ class ConferenceApi(remote.Service):
             )
             profile.put()
 
-        return profile      # return Profile
+        return profile
 
 
     def _doProfile(self, save_request=None):
@@ -620,11 +607,11 @@ class ConferenceApi(remote.Service):
         user_id = getUserId(user)
 
         sessions = Session.query(Session.websafeConferenceKey==request.websafeConferenceKey)
+        
+        # get speaker_ids and speaker from those ids
         speaker_ids = []
         for i in sessions:
             speaker_ids.append(i.speaker_id)
-        
-        # if none then rt acd
         speakers = ndb.get_multi(speaker_ids)
 
         # return set of SpeakerForm objects for given Conference
@@ -635,7 +622,7 @@ class ConferenceApi(remote.Service):
 # - - - Sessions - - - - - - - - - - - - - - - - - - - -
     @staticmethod
     def _setFeaturedSpeaker(confKey, speaker):
-        """Sets memcache featured speakers announcement"""
+        """Sets memcache Featured Speakers announcement"""
         q = Session.query(ndb.AND(
                 Session.speaker_id==speaker,
                 Session.websafeConferenceKey == confKey))
@@ -646,6 +633,7 @@ class ConferenceApi(remote.Service):
             count += 1
             sessionNames.append(i.name)
 
+        # set featured speaker if >= two sessions by speaker
         if count >= 2:
             speakerName = speaker.get()
             speakerName = speakerName.name
@@ -653,7 +641,6 @@ class ConferenceApi(remote.Service):
             memcache.set(MEMCACHE_SPEAKER_KEY, speakerAnounncement)
         return True
 
-    
     def _copySessionToForm(self, session):
         """Copy relevant fields from Session to SessionForm."""
         sf = SessionForm()
@@ -674,7 +661,7 @@ class ConferenceApi(remote.Service):
 
     def _createSessionObject(self, request):
         """Create or update Session object, returning SessionForm/request."""
-        # Comfirm auth
+        # Comfirm that user is conf organizer & auth 
         user = endpoints.get_current_user()
         if not user:
             raise endpoints.UnauthorizedException('Authorization required')
@@ -735,7 +722,6 @@ class ConferenceApi(remote.Service):
         return SessionForms(
             items=[self._copySessionToForm(session) for session in q]
         )
-
 
     @endpoints.method(SessionBySpeakerForm, SessionForms,
         path='getSessionsBySpeaker', http_method='POST', name='getSessionsBySpeaker')
@@ -798,6 +784,7 @@ class ConferenceApi(remote.Service):
             q = q.order(ndb.GenericProperty(inequality_filter))
             q = q.order(Session.name)
 
+        # verify filters valid
         for filtr in filters:
             if filtr["field"] == "duration":
                 filtr["value"] = int(filtr["value"])
@@ -818,6 +805,7 @@ class ConferenceApi(remote.Service):
                 elif filtr['operator'] == '!=':
                     q = q.filter(Session.startTime != filtr['value'])
             
+            # else if not time use req filterNode
             if filtr["field"] != "startTime":
                 formatted_query = ndb.query.FilterNode(filtr["field"], filtr['operator'], filtr['value'])
                 q = q.filter(formatted_query)
@@ -829,6 +817,7 @@ class ConferenceApi(remote.Service):
         formatted_filters = []
         inequality_field = None
 
+        # verify filters valid
         for f in filters:
             filtr = {field.name: getattr(f, field.name) for field in f.all_fields()}
 
@@ -858,16 +847,18 @@ class ConferenceApi(remote.Service):
         return SessionForms(items=[self._copySessionToForm(i) for i in sessions])
 
     # - - - - Task 3.3: Fix problem query - - - - 
+    # See README for discussion on this query.
     @endpoints.method(message_types.VoidMessage, SessionForms,
         path='fixedQuery', 
         http_method='POST',
         name='fixedQuery')
     def fixedQuery(self, request):
         """Fixed query by type and time"""
+        # query filtering for type (q1) & by time (q2)
         q1 = Session.query(Session.typeOfSession != 'Workshop')
         q2 = Session.query(Session.startTime < datetime(1970,01,01,19,00,00).time())
         
-        # filter for the intersection of q1 & q2
+        # merge queries with intersection of q1 & q2
         qfinal = []
         for i in q1:
             if i in q2:
@@ -877,6 +868,7 @@ class ConferenceApi(remote.Service):
                 qfinal.append(i)
 
         return SessionForms(items=[self._copySessionToForm(i) for i in qfinal])
+
 
 # - - - Wishlists - - - - - - - - - - - - - - - - - - - -
     def _updateWishlist(self, request, reg=True):
@@ -906,6 +898,8 @@ class ConferenceApi(remote.Service):
         http_method='GET', name='getWishlist')
     def getWishlist(self, request):
         """Get sessions in user wishlist."""
+        
+        # create sessionKeys and get sessions from these
         user = endpoints.get_current_user()
         user_id = getUserId(user)
         prof = self._getProfileFromUser()
