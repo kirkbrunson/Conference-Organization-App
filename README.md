@@ -49,7 +49,7 @@ As I implemented session kind, it was only natural to add and implement queries 
 ### Problem Query: [Problem && solution]
 The problem query provided was to query for all non-workshop sessions before 7 pm. The problem with this is that there inequality filters applied to two different properties (typeOfSession & startTime) which is [prohibited by Datastore][7]. 
 
-The solution I implemented was to split the filter into two queries and then merge there results. First, I query filtering by typeOfSession, and then I query filtering by startTime. Finally, I merge the two with the intersection of their results which is then returned to the client.
+The solution I implemented was to split the filter into two queries and then merge their results. First, I query filtering by typeOfSession, and then I query filtering by startTime. Finally, I merge the two with the intersection of their results which is then returned to the client.
 
 
 
