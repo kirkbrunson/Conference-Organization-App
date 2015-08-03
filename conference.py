@@ -11,7 +11,7 @@ created by wesc on 2014 apr 21
 """
 
 # TODO
-# fix prob query
+# finish fq&& rme. also rme for sq
 # impl getFeaturedSpeaker() [task] 
 
 # session as child of conf? dbck this.
@@ -750,7 +750,7 @@ class ConferenceApi(remote.Service):
             items=[self._copySessionToForm(session) for session in q]
         )
 
-    # formating/ filtering session queries.
+    # - - - - Session queries - - - - 
     def _getSessionQuery(self, request):
         """Return formatted query from the submitted filters."""
         q = Session.query()
@@ -822,6 +822,26 @@ class ConferenceApi(remote.Service):
         sessions = self._getSessionQuery(request)
         return SessionForms(items=[self._copySessionToForm(i) for i in sessions])
 
+    # - - - - Task 3.3: Fix problem query - - - - 
+    @endpoints.method(message_types.VoidMessage, SessionForms,
+        path='fixedQuery', 
+        http_method='POST',
+        name='fixedQuery')
+    def fixedQuery(self, request):
+        """Fixed query by type and time"""
+        q1 = Session.query(Session.typeOfSession != 'Workshop')
+        q2 = Session.query(Session.startTime < datetime(1970,01,01,19,00,00).time())
+        
+        # filter for the intersection of q1 & q2
+        qfinal = []
+        for i in q1:
+            if i in q2:
+                qfinal.append(i)
+        for i in q2:
+            if i in q1 and i not in qfinal:
+                qfinal.append(i)
+
+        return SessionForms(items=[self._copySessionToForm(i) for i in qfinal])
 
 # - - - Wishlists - - - - - - - - - - - - - - - - - - - -
     def _updateWishlist(self, request, reg=True):

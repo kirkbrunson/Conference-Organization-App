@@ -42,12 +42,12 @@ Wishlists are implemented as an entity under the profile kind as a list of  sess
 Google App Engine handles queries by creating indexes for the kinds and entities defined. This is done in in the config file index.yaml. Basic usage is querying by kind, but one can also apply ancestor, property and inequality filters to the search.
 
 ### Additional Queries:
-As I implemented session kind, it was only natural to add and implement queries for the sessions. Three specific ones that I implemented are as follows: query by session, filter by speakerName and typeOfSession;  query by session, filter by startTime and location; and query by session, filter by startTime and duration. A few use cases could be if a user needs to find sessions that are starting soon near them, or will fit into their schedule.
+As I implemented session kind, it was only natural to add and implement queries for the sessions. Three specific ones that I implemented are as follows: query by session, filter by speakerName and typeOfSession;  query by session, filter by startTime and location; and query by session, filter by startTime and duration. A few use cases would be if a user needs to find sessions that are starting soon near them, or will fit into their schedule.
 
 ### Problem Query: [Problem && solution]
 The problem query provided was to query for all non-workshop sessions before 7 pm. The problem with this is that there inequality filters applied to two different properties (typeOfSession & startTime) which is [prohibited by Datastore][7]. 
 
-The solution I implemented was to split the filter into two parts. I filter by startTime on the results from the previously implemented getSessionsByType().
+The solution I implemented was to split the filter into two queries and then merge there results. First, I query filtering by typeOfSession, and then I query filtering by startTime. Finally, I merge the two with the intersection of their results which is then returned to the client.
 
 
 
