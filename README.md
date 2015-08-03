@@ -9,7 +9,7 @@ App Engine application for the Udacity training course.
 ## APIs
 - [Google Cloud Endpoints][3]
 
-## Setup Instructions
+## Setup & Run Instructions
 1. Clone [https://github.com/kirkbrunson/FSND-P4.git][8]
 1. Update the value of `application` in `app.yaml` to the app ID you
    have registered in the App Engine admin console and would like to use to host
@@ -23,6 +23,8 @@ App Engine application for the Udacity training course.
 1. Run the app with the devserver using `dev_appserver.py DIR`, and ensure it's running by visiting your local server's address (by default [localhost:8080][5].)
 1. (Optional) Generate your client library(ies) with [the endpoints tool][6].
 1. Deploy your application.
+
+Alternatively, see api explorer live [here][9].
 
 
 ## Design Decisions
@@ -59,3 +61,4 @@ The solution I implemented was to split the filter into two queries and then mer
 [6]: https://developers.google.com/appengine/docs/python/endpoints/endpoints_tool
 [7]: https://cloud.google.com/appengine/docs/python/datastore/queries#Python_Restrictions_on_queries
 [8]: https://github.com/kirkbrunson/FSND-P4.git
+[9]: https://xw-boreal-airway-t.appspot.com/_ah/api/explorer
