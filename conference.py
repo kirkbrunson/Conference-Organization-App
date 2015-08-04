@@ -902,7 +902,7 @@ class ConferenceApi(remote.Service):
         prof = self._getProfileFromUser()
 
         # add to wishlist
-        if reg:
+        if reg and request.sessionKey not in prof.sessionKeysToAttend:
             prof.sessionKeysToAttend.append(request.sessionKey)
             retval = True
 
