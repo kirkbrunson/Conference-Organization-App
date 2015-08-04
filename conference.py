@@ -621,11 +621,28 @@ class ConferenceApi(remote.Service):
 
 # - - - Sessions - - - - - - - - - - - - - - - - - - - -
     @staticmethod
-    def _setFeaturedSpeaker(confKey, speaker):
-        """Sets memcache Featured Speakers announcement"""
+    def _checkFeaturedSpeaker(confKey, speaker):
+        """Checks if Featured Speaker eligible"""
         q = Session.query(ndb.AND(
                 Session.speaker_id==speaker,
                 Session.websafeConferenceKey == confKey))
+        count = 0
+        for i in q:
+            count += 1
+
+        if count >= 2:
+            return True
+        else:
+            return False
+
+    @staticmethod
+    def _setFeaturedSpeaker(confKey, speaker_id):
+        """Sets memcache Featured Speakers announcement"""
+        speaker = ndb.Key(Speaker, int(speaker_id))
+        q = Session.query(ndb.AND(
+                Session.speaker_id==speaker,
+                Session.websafeConferenceKey == confKey))
+
         sessionNames = []
         count = 0
 
@@ -689,8 +706,16 @@ class ConferenceApi(remote.Service):
         # Commit
         Session(**data).put()
 
-        # Get Featured Speaker & Sessions and set annoucement:
-        self._setFeaturedSpeaker(request.websafeConferenceKey, data['speaker_id'])
+        # Check if add Featured Speaker
+        fsCheck = self._checkFeaturedSpeaker(request.websafeConferenceKey, data['speaker_id'])
+
+        # Use TaskQueue to add Featured Speaker & Sessions to memCache annoucement:
+        if fsCheck:
+            taskqueue.add(params={
+                'speaker_id': request.speaker_id, 
+                'conf': request.websafeConferenceKey}, 
+                url='/tasks/set_featured_speaker')
+
         return request
         
 
